@@ -1,0 +1,32 @@
+name: cjm-media-plugin-silero-vad
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    # Core Infrastructure
+    - cjm-plugin-system
+
+    # Tier 2 Interface
+    - cjm-media-plugin-system
+
+    # Utilities
+    - fastcore
+    - pydantic
+
+    # Audio Processing
+    - librosa
+    - numpy
+    - soundfile
+
+    # VAD Inference
+    - silero-vad
+    - onnxruntime  # Use onnxruntime-gpu if GPU acceleration is strictly required, but CPU is usually fine for VAD
+
+    # Worker dependencies
+    - fastapi
+    - uvicorn
+    - psutil
+    - httpx
