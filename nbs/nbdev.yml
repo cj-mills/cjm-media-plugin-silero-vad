@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "cjm-media-plugin-silero-vad"
+  site-url: "https://cj-mills.github.io/cjm-media-plugin-silero-vad"
+  description: "A local, persistent Voice Activity Detection (VAD) worker for the cjm-plugin-system that provides high-accuracy speech segmentation using Silero VAD with SQLite result caching."
+  repo-branch: main
+  repo-url: "https://github.com/cj-mills/cjm-media-plugin-silero-vad"
