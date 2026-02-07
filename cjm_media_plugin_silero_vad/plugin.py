@@ -6,11 +6,8 @@
 __all__ = ['SileroVADConfig', 'SileroVADPlugin']
 
 # %% ../nbs/plugin.ipynb #fe7e7229
-import sqlite3
 import json
 import time
-import os
-import hashlib
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List, Union, Tuple
@@ -22,8 +19,10 @@ import librosa
 # Tier 2 Imports
 from cjm_media_plugin_system.analysis_interface import MediaAnalysisPlugin
 from cjm_media_plugin_system.core import MediaAnalysisResult, TimeRange
+from cjm_media_plugin_system.storage import MediaAnalysisStorage
 
 # Plugin System Utils
+from cjm_plugin_system.utils.hashing import hash_file, hash_bytes
 from cjm_plugin_system.utils.validation import (
     dict_to_config, config_to_dict, dataclass_to_jsonschema,
     SCHEMA_TITLE, SCHEMA_DESC, SCHEMA_MIN, SCHEMA_MAX, SCHEMA_ENUM
@@ -106,7 +105,7 @@ class SileroVADPlugin(MediaAnalysisPlugin):
         self.logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
         self.config: SileroVADConfig = None
         self._model = None
-        self._db_path = None
+        self.storage: Optional[MediaAnalysisStorage] = None
 
     @property
     def name(self) -> str:  # Plugin name identifier
@@ -138,25 +137,11 @@ class SileroVADPlugin(MediaAnalysisPlugin):
         """Initialize or re-configure the plugin (idempotent)."""
         self.config = dict_to_config(SileroVADConfig, config or {})
         
-        # Set DB Path
-        self._db_path = get_plugin_metadata()["db_path"]
-        self._init_db()
+        # Initialize standardized storage
+        db_path = get_plugin_metadata()["db_path"]
+        self.storage = MediaAnalysisStorage(db_path)
         
         self.logger.info(f"Initialized Silero VAD plugin with threshold={self.config.threshold}")
-
-    def _init_db(self) -> None:
-        """Ensure local cache database exists."""
-        with sqlite3.connect(self._db_path) as con:
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS vad_jobs (
-                    file_path TEXT PRIMARY KEY,
-                    file_hash TEXT,
-                    config_hash TEXT,
-                    ranges JSON,
-                    metadata JSON,
-                    created_at REAL
-                )
-            """)
 
     def _load_model(self) -> None:
         """Lazy load the Silero model."""
@@ -199,29 +184,25 @@ class SileroVADPlugin(MediaAnalysisPlugin):
         else:
             run_config = self.config
 
-        config_hash = json.dumps(config_to_dict(run_config), sort_keys=True)
+        # Hash the config for cache keying
+        config_hash = hash_bytes(json.dumps(config_to_dict(run_config), sort_keys=True).encode())
         
         # 1. Check Cache
         if not force:
-            with sqlite3.connect(self._db_path) as con:
-                cur = con.execute(
-                    "SELECT ranges, metadata, config_hash FROM vad_jobs WHERE file_path = ?",
-                    (media_path,)
+            cached = self.storage.get_cached(media_path, config_hash)
+            if cached:
+                self.logger.info(f"Using cached VAD result for {media_path}")
+                ranges_data = cached.ranges or []
+                return MediaAnalysisResult(
+                    ranges=[TimeRange(**r) for r in ranges_data],
+                    metadata=cached.metadata or {}
                 )
-                row = cur.fetchone()
-                
-                # Use cached if config matches (params haven't changed)
-                if row and row[2] == config_hash:
-                    self.logger.info(f"Using cached VAD result for {media_path}")
-                    ranges_data = json.loads(row[0])
-                    meta_data = json.loads(row[1])
-                    return MediaAnalysisResult(
-                        ranges=[TimeRange(**r) for r in ranges_data],
-                        metadata=meta_data
-                    )
 
         # 2. Process
         self._load_model()
+        
+        # Hash the source file before processing
+        file_hash = hash_file(media_path)
         
         # Load Audio
         self.logger.info(f"Processing audio: {media_path}")
@@ -265,21 +246,13 @@ class SileroVADPlugin(MediaAnalysisPlugin):
         self.logger.info(f"Detected {len(ranges)} speech segments ({total_speech:.2f}s speech / {duration:.2f}s total)")
 
         # 3. Save to Cache
-        with sqlite3.connect(self._db_path) as con:
-            con.execute(
-                """
-                INSERT OR REPLACE INTO vad_jobs
-                (file_path, config_hash, ranges, metadata, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    media_path,
-                    config_hash,
-                    json.dumps([r.to_dict() for r in ranges]),
-                    json.dumps(metadata),
-                    time.time()
-                )
-            )
+        self.storage.save(
+            file_path=media_path,
+            file_hash=file_hash,
+            config_hash=config_hash,
+            ranges=[r.to_dict() for r in ranges],
+            metadata=metadata
+        )
             
         return MediaAnalysisResult(ranges=ranges, metadata=metadata)
 
