@@ -5,7 +5,7 @@
 # %% auto #0
 __all__ = ['SileroVADConfig', 'SileroVADPlugin']
 
-# %% ../nbs/plugin.ipynb #f4c2dd26
+# %% ../nbs/plugin.ipynb #fe7e7229
 import sqlite3
 import json
 import time
@@ -37,7 +37,7 @@ try:
 except ImportError:
     SILERO_AVAILABLE = False
 
-# %% ../nbs/plugin.ipynb #74293320
+# %% ../nbs/plugin.ipynb #b810b57b
 @dataclass
 class SileroVADConfig:
     """Configuration for Silero VAD parameters."""
@@ -95,7 +95,7 @@ class SileroVADConfig:
         }
     )
 
-# %% ../nbs/plugin.ipynb #4dc9aaac
+# %% ../nbs/plugin.ipynb #ea0dda6a
 class SileroVADPlugin(MediaAnalysisPlugin):
     """Voice Activity Detection plugin using Silero VAD."""
     

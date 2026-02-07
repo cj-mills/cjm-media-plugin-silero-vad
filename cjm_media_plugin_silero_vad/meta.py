@@ -5,13 +5,13 @@
 # %% auto #0
 __all__ = ['get_plugin_metadata']
 
-# %% ../nbs/meta.ipynb #57e8332e
+# %% ../nbs/meta.ipynb #ad738c19
 import os
 import sys
 from typing import Any, Dict
 from . import __version__
 
-# %% ../nbs/meta.ipynb #ee41ac04
+# %% ../nbs/meta.ipynb #07577bff
 def get_plugin_metadata() -> Dict[str, Any]:  # Plugin metadata for manifest generation
     """Return metadata required to register this plugin with the PluginManager."""
     # Fallback base path (current behavior for backward compatibility)
