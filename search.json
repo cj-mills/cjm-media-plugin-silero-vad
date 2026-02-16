@@ -1,0 +1,122 @@
+[
+  {
+    "objectID": "plugin.html",
+    "href": "plugin.html",
+    "title": "Silero VAD Plugin",
+    "section": "",
+    "text": "The SileroVADConfig dataclass defines all configurable parameters for the VAD model.\n\nsource\n\n\n\ndef SileroVADConfig(\n    threshold:float=0.5, min_speech_duration_ms:int=250, min_silence_duration_ms:int=100, speech_pad_ms:int=30,\n    sampling_rate:int=16000, use_onnx:bool=True\n)-&gt;None:\n\nConfiguration for Silero VAD parameters.",
+    "crumbs": [
+      "Silero VAD Plugin"
+    ]
+  },
+  {
+    "objectID": "plugin.html#configuration",
+    "href": "plugin.html#configuration",
+    "title": "Silero VAD Plugin",
+    "section": "",
+    "text": "The SileroVADConfig dataclass defines all configurable parameters for the VAD model.\n\nsource\n\n\n\ndef SileroVADConfig(\n    threshold:float=0.5, min_speech_duration_ms:int=250, min_silence_duration_ms:int=100, speech_pad_ms:int=30,\n    sampling_rate:int=16000, use_onnx:bool=True\n)-&gt;None:\n\nConfiguration for Silero VAD parameters.",
+    "crumbs": [
+      "Silero VAD Plugin"
+    ]
+  },
+  {
+    "objectID": "plugin.html#plugin-implementation",
+    "href": "plugin.html#plugin-implementation",
+    "title": "Silero VAD Plugin",
+    "section": "Plugin Implementation",
+    "text": "Plugin Implementation\nThe SileroVADPlugin implements MediaAnalysisPlugin to provide voice activity detection.\n\nsource\n\nSileroVADPlugin\n\ndef SileroVADPlugin(\n    \n):\n\nVoice Activity Detection plugin using Silero VAD.",
+    "crumbs": [
+      "Silero VAD Plugin"
+    ]
+  },
+  {
+    "objectID": "plugin.html#testing-the-plugin",
+    "href": "plugin.html#testing-the-plugin",
+    "title": "Silero VAD Plugin",
+    "section": "Testing the Plugin",
+    "text": "Testing the Plugin\n\n# Test basic functionality\nplugin = SileroVADPlugin()\n\n# Check availability\nprint(f\"Silero VAD available: {plugin.is_available()}\")\nprint(f\"Plugin name: {plugin.name}\")\nprint(f\"Plugin version: {plugin.version}\")\nprint(f\"Supported media types: {plugin.supported_media_types}\")\nprint(f\"Config class: {plugin.config_class.__name__}\")\n\nSilero VAD available: True\nPlugin name: silero-vad\nPlugin version: 1.0.0\nSupported media types: ['audio', 'video']\nConfig class: SileroVADConfig\n\n\n\n# Test configuration dataclass\nfrom dataclasses import fields\n\nprint(\"Configuration fields:\")\nfor f in fields(SileroVADConfig):\n    title = f.metadata.get(SCHEMA_TITLE, f.name)\n    default = f.default\n    print(f\"  {title}: {default}\")\n\nConfiguration fields:\n  Threshold: 0.5\n  Min Speech Duration (ms): 250\n  Min Silence Duration (ms): 100\n  Speech Padding (ms): 30\n  Sampling Rate: 16000\n  Use ONNX: True\n\n\n\n# Test configuration validation\ntest_configs = [\n    ({\"threshold\": 0.5}, \"Valid config\"),\n    ({\"threshold\": 1.5}, \"Threshold out of range\"),\n    ({\"sampling_rate\": 44100}, \"Invalid sampling rate\"),\n]\n\nfor config, description in test_configs:\n    try:\n        test_cfg = dict_to_config(SileroVADConfig, config, validate=True)\n        print(f\"{description}: Valid=True\")\n    except ValueError as e:\n        print(f\"{description}: Valid=False\")\n        print(f\"  Error: {str(e)[:80]}\")\n\nValid config: Valid=True\nThreshold out of range: Valid=False\n  Error: threshold: 1.5 is greater than maximum 1.0\nInvalid sampling rate: Valid=False\n  Error: sampling_rate: 44100 is not one of [8000, 16000]\n\n\n\n# Test get_config_schema for UI generation\nimport json\n\nschema = plugin.get_config_schema()\nprint(\"JSON Schema for SileroVADConfig:\")\nprint(f\"  Name: {schema['name']}\")\nprint(f\"  Properties count: {len(schema['properties'])}\")\nprint(f\"\\nSample properties:\")\nprint(json.dumps({k: v for k, v in list(schema['properties'].items())[:3]}, indent=2))\n\nJSON Schema for SileroVADConfig:\n  Name: SileroVADConfig\n  Properties count: 6\n\nSample properties:\n{\n  \"threshold\": {\n    \"type\": \"number\",\n    \"title\": \"Threshold\",\n    \"description\": \"Speech probability threshold (0.0 - 1.0). Higher values reduce false positives.\",\n    \"minimum\": 0.0,\n    \"maximum\": 1.0,\n    \"default\": 0.5\n  },\n  \"min_speech_duration_ms\": {\n    \"type\": \"integer\",\n    \"title\": \"Min Speech Duration (ms)\",\n    \"description\": \"Segments shorter than this will be ignored.\",\n    \"minimum\": 0,\n    \"default\": 250\n  },\n  \"min_silence_duration_ms\": {\n    \"type\": \"integer\",\n    \"title\": \"Min Silence Duration (ms)\",\n    \"description\": \"Silence shorter than this will not split segments.\",\n    \"minimum\": 0,\n    \"default\": 100\n  }\n}",
+    "crumbs": [
+      "Silero VAD Plugin"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "cjm-media-plugin-silero-vad",
+    "section": "",
+    "text": "pip install cjm_media_plugin_silero_vad",
+    "crumbs": [
+      "cjm-media-plugin-silero-vad"
+    ]
+  },
+  {
+    "objectID": "index.html#install",
+    "href": "index.html#install",
+    "title": "cjm-media-plugin-silero-vad",
+    "section": "",
+    "text": "pip install cjm_media_plugin_silero_vad",
+    "crumbs": [
+      "cjm-media-plugin-silero-vad"
+    ]
+  },
+  {
+    "objectID": "index.html#project-structure",
+    "href": "index.html#project-structure",
+    "title": "cjm-media-plugin-silero-vad",
+    "section": "Project Structure",
+    "text": "Project Structure\nnbs/\n├── meta.ipynb   # Metadata introspection for the Silero VAD plugin used by cjm-ctl to generate the registration manifest.\n└── plugin.ipynb # Plugin implementation for Voice Activity Detection using Silero VAD with SQLite result caching.\nTotal: 2 notebooks",
+    "crumbs": [
+      "cjm-media-plugin-silero-vad"
+    ]
+  },
+  {
+    "objectID": "index.html#module-dependencies",
+    "href": "index.html#module-dependencies",
+    "title": "cjm-media-plugin-silero-vad",
+    "section": "Module Dependencies",
+    "text": "Module Dependencies\ngraph LR\n    meta[meta&lt;br/&gt;Metadata]\n    plugin[plugin&lt;br/&gt;Silero VAD Plugin]\n\n    plugin --&gt; meta\n1 cross-module dependencies detected",
+    "crumbs": [
+      "cjm-media-plugin-silero-vad"
+    ]
+  },
+  {
+    "objectID": "index.html#cli-reference",
+    "href": "index.html#cli-reference",
+    "title": "cjm-media-plugin-silero-vad",
+    "section": "CLI Reference",
+    "text": "CLI Reference\nNo CLI commands found in this project.",
+    "crumbs": [
+      "cjm-media-plugin-silero-vad"
+    ]
+  },
+  {
+    "objectID": "index.html#module-overview",
+    "href": "index.html#module-overview",
+    "title": "cjm-media-plugin-silero-vad",
+    "section": "Module Overview",
+    "text": "Module Overview\nDetailed documentation for each module in the project:\n\nMetadata (meta.ipynb)\n\nMetadata introspection for the Silero VAD plugin used by cjm-ctl to generate the registration manifest.\n\n\nImport\nfrom cjm_media_plugin_silero_vad.meta import (\n    get_plugin_metadata\n)\n\n\nFunctions\ndef get_plugin_metadata() -&gt; Dict[str, Any]:  # Plugin metadata for manifest generation\n    \"\"\"Return metadata required to register this plugin with the PluginManager.\"\"\"\n    # Fallback base path (current behavior for backward compatibility)\n    base_path = os.path.dirname(os.path.dirname(sys.executable))\n    \n    # Use CJM config if available\n    cjm_data_dir = os.environ.get(\"CJM_DATA_DIR\")\n    \n    # Plugin data directory\n    plugin_name = \"cjm-media-plugin-silero-vad\"\n    if cjm_data_dir\n    \"Return metadata required to register this plugin with the PluginManager.\"\n\n\n\nSilero VAD Plugin (plugin.ipynb)\n\nPlugin implementation for Voice Activity Detection using Silero VAD with SQLite result caching.\n\n\nImport\nfrom cjm_media_plugin_silero_vad.plugin import (\n    SileroVADConfig,\n    SileroVADPlugin\n)\n\n\nClasses\n@dataclass\nclass SileroVADConfig:\n    \"Configuration for Silero VAD parameters.\"\n    \n    threshold: float = field(...)\n    min_speech_duration_ms: int = field(...)\n    min_silence_duration_ms: int = field(...)\n    speech_pad_ms: int = field(...)\n    sampling_rate: int = field(...)\n    use_onnx: bool = field(...)\nclass SileroVADPlugin:\n    def __init__(self):\n        \"\"\"Initialize the Silero VAD plugin.\"\"\"\n        self.logger = logging.getLogger(f\"{__name__}.{type(self).__name__}\")\n        self.config: SileroVADConfig = None\n    \"Voice Activity Detection plugin using Silero VAD.\"\n    \n    def __init__(self):\n            \"\"\"Initialize the Silero VAD plugin.\"\"\"\n            self.logger = logging.getLogger(f\"{__name__}.{type(self).__name__}\")\n            self.config: SileroVADConfig = None\n        \"Initialize the Silero VAD plugin.\"\n    \n    def name(self) -&gt; str:  # Plugin name identifier\n            \"\"\"Get the plugin name identifier.\"\"\"\n            return \"silero-vad\"\n        \n        @property\n        def version(self) -&gt; str:  # Plugin version string\n        \"Get the plugin name identifier.\"\n    \n    def version(self) -&gt; str:  # Plugin version string\n            \"\"\"Get the plugin version string.\"\"\"\n            return \"1.0.0\"\n        \n        @property\n        def supported_media_types(self) -&gt; List[str]:  # Supported media types\n        \"Get the plugin version string.\"\n    \n    def supported_media_types(self) -&gt; List[str]:  # Supported media types\n            \"\"\"Get the list of supported media types.\"\"\"\n            return [\"audio\", \"video\"]\n    \n        def get_current_config(self) -&gt; Dict[str, Any]:  # Current configuration as dictionary\n        \"Get the list of supported media types.\"\n    \n    def get_current_config(self) -&gt; Dict[str, Any]:  # Current configuration as dictionary\n            \"\"\"Return current configuration state.\"\"\"\n            return config_to_dict(self.config) if self.config else {}\n    \n        def get_config_schema(self) -&gt; Dict[str, Any]:  # JSON Schema for configuration\n        \"Return current configuration state.\"\n    \n    def get_config_schema(self) -&gt; Dict[str, Any]:  # JSON Schema for configuration\n            \"\"\"Return JSON Schema for UI generation.\"\"\"\n            return dataclass_to_jsonschema(SileroVADConfig)\n    \n        def initialize(\n            self,\n            config: Optional[Any] = None  # Configuration dataclass, dict, or None\n        ) -&gt; None\n        \"Return JSON Schema for UI generation.\"\n    \n    def initialize(\n            self,\n            config: Optional[Any] = None  # Configuration dataclass, dict, or None\n        ) -&gt; None\n        \"Initialize or re-configure the plugin (idempotent).\"\n    \n    def execute(\n            self,\n            media_path: Union[str, Path],  # Path to media file to analyze\n            force: bool = False,           # If True, ignore cache and re-run\n            **kwargs                       # Override config parameters for this run\n        ) -&gt; MediaAnalysisResult:  # Analysis result with detected speech segments\n        \"Run VAD on the audio file.\"\n    \n    def is_available(self) -&gt; bool:  # True if Silero VAD is available\n            \"\"\"Check if Silero VAD is available.\"\"\"\n            return SILERO_AVAILABLE\n    \n        def cleanup(self) -&gt; None\n        \"Check if Silero VAD is available.\"\n    \n    def cleanup(self) -&gt; None:\n            \"\"\"Clean up resources.\"\"\"\n            if self._model is not None\n        \"Clean up resources.\"",
+    "crumbs": [
+      "cjm-media-plugin-silero-vad"
+    ]
+  },
+  {
+    "objectID": "meta.html",
+    "href": "meta.html",
+    "title": "Metadata",
+    "section": "",
+    "text": "source",
+    "crumbs": [
+      "Metadata"
+    ]
+  },
+  {
+    "objectID": "meta.html#testing",
+    "href": "meta.html#testing",
+    "title": "Metadata",
+    "section": "Testing",
+    "text": "Testing\n\nimport json\n\nmetadata = get_plugin_metadata()\nprint(json.dumps(metadata, indent=2))\n\n{\n  \"name\": \"cjm-media-plugin-silero-vad\",\n  \"version\": \"0.0.2\",\n  \"type\": \"media-analysis\",\n  \"category\": \"media\",\n  \"interface\": \"cjm_media_plugin_system.analysis_interface.MediaAnalysisPlugin\",\n  \"module\": \"cjm_media_plugin_silero_vad.plugin\",\n  \"class\": \"SileroVADPlugin\",\n  \"python_path\": \"/opt/hostedtoolcache/Python/3.12.12/x64/bin/python\",\n  \"db_path\": \"/opt/hostedtoolcache/Python/3.12.12/x64/data/vad_jobs.db\",\n  \"resources\": {\n    \"requires_gpu\": false,\n    \"min_system_ram_mb\": 4096\n  },\n  \"env_vars\": {\n    \"OMP_NUM_THREADS\": \"4\"\n  }\n}",
+    "crumbs": [
+      "Metadata"
+    ]
+  }
+]
