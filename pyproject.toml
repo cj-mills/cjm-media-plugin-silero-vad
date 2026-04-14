@@ -1,11 +1,30 @@
 [build-system]
-requires = ["setuptools>=64.0,<76.0"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name="cjm-media-plugin-silero-vad"
-requires-python=">=3.12"
-dynamic = [ "keywords", "description", "version", "dependencies", "optional-dependencies", "readme", "license", "authors", "classifiers", "entry-points", "scripts", "urls"]
+name = "cjm-media-plugin-silero-vad"
+dynamic = ["version"]
+description = "A local, persistent Voice Activity Detection (VAD) worker for the cjm-plugin-system that provides high-accuracy speech segmentation using Silero VAD with SQLite result caching."
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "Apache-2.0"}
+authors = [{name = "Christian J. Mills", email = "9126128+cj-mills@users.noreply.github.com"}]
+keywords = ['nbdev', 'jupyter', 'notebook', 'python']
+classifiers = ["Natural Language :: English", "Intended Audience :: Developers", "Development Status :: 3 - Alpha", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only"]
+dependencies = ['cjm_media_plugin_system', 'silero-vad', 'onnxruntime', 'librosa', 'numpy', 'soundfile']
 
-[tool.uv]
-cache-keys = [{ file = "pyproject.toml" }, { file = "settings.ini" }, { file = "setup.py" }]
+[project.urls]
+Repository = "https://github.com/cj-mills/cjm-media-plugin-silero-vad"
+Documentation = "https://cj-mills.github.io/cjm-media-plugin-silero-vad"
+
+[project.entry-points.nbdev]
+cjm_media_plugin_silero_vad = "cjm_media_plugin_silero_vad._modidx:d"
+
+[tool.setuptools.dynamic]
+version = {attr = "cjm_media_plugin_silero_vad.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["cjm_media_plugin_silero_vad"]
+
+[tool.nbdev]
