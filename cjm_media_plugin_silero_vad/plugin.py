@@ -24,7 +24,7 @@ from cjm_media_plugin_system.core import MediaAnalysisResult, TimeRange
 from cjm_media_plugin_system.storage import MediaAnalysisStorage
 
 # Plugin System Utils
-from cjm_plugin_system.utils.hashing import hash_file, hash_bytes
+from cjm_plugin_system.utils.hashing import hash_file, hash_dict_canonical
 from cjm_plugin_system.utils.validation import (
     dict_to_config, config_to_dict, dataclass_to_jsonschema,
     SCHEMA_TITLE, SCHEMA_DESC, SCHEMA_MIN, SCHEMA_MAX, SCHEMA_ENUM
@@ -210,7 +210,7 @@ class SileroVADPlugin(MediaAnalysisPlugin):
             run_config = self.config
 
         # Hash the config for cache keying
-        config_hash = hash_bytes(json.dumps(config_to_dict(run_config), sort_keys=True).encode())
+        config_hash = hash_dict_canonical(config_to_dict(run_config))
         
         # 1. Check Cache
         if not force:
