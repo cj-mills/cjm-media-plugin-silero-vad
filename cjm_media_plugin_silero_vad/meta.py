@@ -37,6 +37,8 @@ def get_plugin_metadata() -> Dict[str, Any]:  # Plugin metadata for manifest gen
     return {
         "name": plugin_name,
         "version": __version__,
+        # T24: non-empty description required by the substrate validator (SG-6 / V1 gate).
+        "description": "Voice Activity Detection (speech segmentation) via Silero VAD with SQLite result caching.",
         "type": "media-analysis",
         "category": "media",
         
@@ -51,13 +53,13 @@ def get_plugin_metadata() -> Dict[str, Any]:  # Plugin metadata for manifest gen
         
         "db_path": db_path,
         
-        # Resources: VAD is CPU-friendly but benefits from 4-8GB RAM for loading long audio
+        # Phase 5a / CR-7 reframe: binary hard-facts only (quantitative resource
+        # amounts dropped — the substrate measures empirically, V12 gate).
         "resources": {
-            "requires_gpu": False,
-            "min_system_ram_mb": 4096
+            "requires_gpu": False
         },
         
-        "env_vars": {
-            "OMP_NUM_THREADS": "4"
-        }
+        # Track 19: visible worker env is now declared on the plugin class via
+        # WORKER_ENV (EnvVarSpec); the substrate composes + injects it at spawn.
+        "env_vars": {}
     }

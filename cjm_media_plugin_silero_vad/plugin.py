@@ -12,7 +12,7 @@ import json
 import time
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List, Union, Tuple, ClassVar
 from pathlib import Path
 
 import numpy as np
@@ -31,7 +31,7 @@ from cjm_plugin_system.utils.validation import (
 )
 from .meta import get_plugin_metadata
 from cjm_plugin_system.core.errors import PluginFatalError
-from cjm_plugin_system.core.interface import RELOAD_TRIGGER
+from cjm_plugin_system.core.interface import RELOAD_TRIGGER, EnvVarSpec
 
 # Silero Imports
 try:
@@ -104,6 +104,18 @@ class SileroVADPlugin(MediaAnalysisPlugin):
     """Voice Activity Detection plugin using Silero VAD."""
     
     config_class = SileroVADConfig
+
+    # Track 19 (CR-12 worker-env model): the worker's spawn-time environment,
+    # declared on the class. Static default (no ${...} template) — the substrate
+    # composes the overlay in _resolve_worker_env and injects it at Popen.
+    WORKER_ENV: ClassVar[List[EnvVarSpec]] = [
+        EnvVarSpec(
+            name="OMP_NUM_THREADS",
+            default="4",
+            label="OpenMP Threads",
+            description="Thread cap for CPU-side numerical ops.",
+        ),
+    ]
     
     def __init__(self):
         """Initialize the Silero VAD plugin."""
@@ -120,7 +132,8 @@ class SileroVADPlugin(MediaAnalysisPlugin):
     @property
     def version(self) -> str:  # Plugin version string
         """Get the plugin version string."""
-        return "1.0.0"
+        from cjm_media_plugin_silero_vad import __version__
+        return __version__
     
     @property
     def supported_media_types(self) -> List[str]:  # Supported media types

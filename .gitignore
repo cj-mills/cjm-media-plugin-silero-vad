@@ -157,4 +157,5 @@ checklink/cookies.txt
 /test_files/
 /.cjm/
 /runtime/
+/configs/
 /models/
