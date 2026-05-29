@@ -12,7 +12,7 @@ license = {text = "Apache-2.0"}
 authors = [{name = "Christian J. Mills", email = "9126128+cj-mills@users.noreply.github.com"}]
 keywords = ['nbdev', 'jupyter', 'notebook', 'python']
 classifiers = ["Natural Language :: English", "Intended Audience :: Developers", "Development Status :: 3 - Alpha", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only"]
-dependencies = ['cjm_media_plugin_system>=0.0.9', 'silero-vad', 'onnxruntime', 'librosa', 'numpy', 'soundfile']
+dependencies = ['cjm_media_plugin_system>=0.0.10', 'silero-vad', 'onnxruntime', 'librosa', 'numpy', 'soundfile']
 
 [project.urls]
 Repository = "https://github.com/cj-mills/cjm-media-plugin-silero-vad"
