@@ -1,4 +1,4 @@
-"""Plugin implementation for Voice Activity Detection using Silero VAD with SQLite result caching.
+"""Pure-compute voice-activity-detection tool capability using Silero VAD (Option C, stage 8).
 
 Docs: https://cj-mills.github.io/cjm-media-plugin-silero-vadplugin.html.md"""
 
@@ -8,30 +8,27 @@ Docs: https://cj-mills.github.io/cjm-media-plugin-silero-vadplugin.html.md"""
 __all__ = ['SileroVADConfig', 'SileroVADPlugin']
 
 # %% ../nbs/plugin.ipynb #fe7e7229
-import json
-import time
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List, Union, Tuple, ClassVar
 from pathlib import Path
 
 import numpy as np
-import librosa
+import soundfile as sf
 
-# Tier 2 Imports
-from cjm_media_plugin_system.analysis_interface import MediaAnalysisPlugin
-from cjm_media_plugin_system.core import MediaAnalysisResult, TimeRange
-from cjm_media_plugin_system.storage import MediaAnalysisStorage
-
-# Plugin System Utils
-from cjm_plugin_system.utils.hashing import hash_file, hash_dict_canonical
+# Stage 8 (Option C / PILLAR 1c): the tool re-bases onto ToolCapability (pure
+# compute). The cache/persist bookends + the VADResult data noun moved OUT — the
+# generic adapter (cjm-vad-adapter-interface) owns the cache, and the result DTO
+# lives in cjm-capability-primitives. No get_plugin_metadata, no self.storage,
+# no librosa: audio arrives MODEL-READY (mono 8k/16k, converted upstream by
+# ffmpeg with the soxr resampler), so the tool just reads it via soundfile.
+from cjm_plugin_system.core.capability import ToolCapability, RELOAD_TRIGGER, EnvVarSpec
+from cjm_capability_primitives.vad import VADResult, TimeRange
+from cjm_plugin_system.core.errors import PluginInputError, PluginFatalError
 from cjm_plugin_system.utils.validation import (
     dict_to_config, config_to_dict, dataclass_to_jsonschema,
-    SCHEMA_TITLE, SCHEMA_DESC, SCHEMA_MIN, SCHEMA_MAX, SCHEMA_ENUM
+    SCHEMA_TITLE, SCHEMA_DESC, SCHEMA_MIN, SCHEMA_MAX
 )
-from .meta import get_plugin_metadata
-from cjm_plugin_system.core.errors import PluginFatalError
-from cjm_plugin_system.core.interface import RELOAD_TRIGGER, EnvVarSpec
 
 # Silero Imports
 try:
@@ -81,15 +78,6 @@ class SileroVADConfig:
         }
     )
     
-    sampling_rate: int = field(
-        default=16000,
-        metadata={
-            SCHEMA_TITLE: "Sampling Rate",
-            SCHEMA_DESC: "Target sampling rate for VAD processing (Silero expects 8k or 16k).",
-            SCHEMA_ENUM: [8000, 16000]
-        }
-    )
-    
     use_onnx: bool = field(
         default=True,
         metadata={
@@ -100,14 +88,22 @@ class SileroVADConfig:
     )
 
 # %% ../nbs/plugin.ipynb #ea0dda6a
-class SileroVADPlugin(MediaAnalysisPlugin):
-    """Voice Activity Detection plugin using Silero VAD."""
-    
+class SileroVADPlugin(ToolCapability):
+    """Voice Activity Detection tool capability using Silero VAD (stage 8: pure compute).
+
+    Native-surface model (PILLAR 1c): this tool is PURE COMPUTE — `detect_speech`
+    reads MODEL-READY audio, runs Silero inference, and builds the typed
+    `VADResult`. The cache-check + persistence bookends + the per-call `force`
+    control live in the generic VAD adapter (cjm-vad-adapter-interface); the
+    result DTO lives in cjm-capability-primitives; identity is derived from the
+    installed distribution. No `get_plugin_metadata`, no `self.storage`, no
+    librosa (decode/resample is upstream ffmpeg, soxr)."""
+
+    # CR-4: declarative reload-triggers — substrate's reconfigure_with_triggers
+    # walks config_class for RELOAD_TRIGGER metadata and fires _release_<trigger>.
     config_class = SileroVADConfig
 
-    # Track 19 (CR-12 worker-env model): the worker's spawn-time environment,
-    # declared on the class. Static default (no ${...} template) — the substrate
-    # composes the overlay in _resolve_worker_env and injects it at Popen.
+    # Track 19 (CR-12 worker-env model): worker spawn env declared on the class.
     WORKER_ENV: ClassVar[List[EnvVarSpec]] = [
         EnvVarSpec(
             name="OMP_NUM_THREADS",
@@ -116,29 +112,25 @@ class SileroVADPlugin(MediaAnalysisPlugin):
             description="Thread cap for CPU-side numerical ops.",
         ),
     ]
-    
+
     def __init__(self):
         """Initialize the Silero VAD plugin."""
         self.logger = logging.getLogger(f"{__name__}.{type(self).__name__}")
         self.config: SileroVADConfig = None
         self._model = None
-        self.storage: Optional[MediaAnalysisStorage] = None
 
     @property
     def name(self) -> str:  # Plugin name identifier
-        """Get the plugin name identifier."""
-        return get_plugin_metadata()["name"]
-    
+        """Plugin identity, derived from the installed distribution (PILLAR 1c)."""
+        from importlib.metadata import metadata, packages_distributions
+        dist = (packages_distributions().get(__package__) or [__package__.replace("_", "-")])[0]
+        return metadata(dist)["Name"]
+
     @property
     def version(self) -> str:  # Plugin version string
         """Get the plugin version string."""
         from cjm_media_plugin_silero_vad import __version__
         return __version__
-    
-    @property
-    def supported_media_types(self) -> List[str]:  # Supported media types
-        """Get the list of supported media types."""
-        return ["audio", "video"]
 
     def get_current_config(self) -> Dict[str, Any]:  # Current configuration as dictionary
         """Return current configuration state."""
@@ -161,14 +153,10 @@ class SileroVADPlugin(MediaAnalysisPlugin):
         config: Optional[Any] = None  # Configuration dataclass, dict, or None
     ) -> None:
         """First-time setup. CR-4: config application is factored into _apply_config;
-        the substrate's reconfigure(old, new) handles deltas - it fires _release_model
-        on a use_onnx change (RELOAD_TRIGGER) then re-applies config."""
+        the substrate's reconfigure(old, new) fires _release_model on a use_onnx
+        change (RELOAD_TRIGGER) then re-applies config. No storage init — the
+        adapter owns the cache (stage 8)."""
         self._apply_config(config)
-        
-        # Initialize standardized storage (one-time)
-        db_path = get_plugin_metadata()["db_path"]
-        self.storage = MediaAnalysisStorage(db_path)
-        
         self.logger.info(f"Initialized Silero VAD plugin with threshold={self.config.threshold}")
 
     def _load_model(self) -> None:
@@ -184,130 +172,108 @@ class SileroVADPlugin(MediaAnalysisPlugin):
 
     def _release_model(self) -> None:
         """CR-4: release the loaded VAD model. RELOAD_TRIGGER target for `use_onnx`;
-        on_disable / cleanup delegate here. Guarded so a redundant call is a no-op
-        (the substrate may fire this via reconfigure before a retained init path)."""
+        on_disable / cleanup delegate here. Guarded so a redundant call is a no-op."""
         if self._model is not None:
             self.logger.info("Releasing Silero VAD model")
             self._model = None
 
+    def _prepare_audio(
+        self,
+        audio: Union[str, Path]  # Path to a MODEL-READY audio file
+    ) -> str:  # The audio file path
+        """Validate the audio input and return it as a path string.
+
+        The caller (orchestration / adapter) guarantees a MODEL-READY audio file
+        (mono, 8k/16k — converted upstream by ffmpeg); in-tool decode/resample is
+        no longer a plugin responsibility."""
+        if isinstance(audio, (str, Path)):
+            return str(audio)
+        raise PluginInputError(  # SG-47: typed input-validation
+            f"Unsupported audio input type: {type(audio)}; expected a file path (str or Path)",
+            fields_invalid=["audio"],
+        )
+
     def _load_audio(
         self,
-        path: str,      # Path to audio file
-        target_sr: int  # Target sampling rate
-    ) -> Tuple[np.ndarray, float]:  # (audio array, duration in seconds)
-        """Load and normalize audio using librosa."""
-        # Use librosa to load (supports many formats)
-        y, sr = librosa.load(path, sr=target_sr, mono=True)
-        
-        # Normalize
-        peak = np.max(np.abs(y)) if len(y) else 0.0
+        path: str  # Path to a model-ready audio file
+    ) -> Tuple[np.ndarray, int, float]:  # (mono float32 samples, sample rate, duration in seconds)
+        """Read MODEL-READY audio via soundfile (no resample — conversion is upstream).
+
+        Returns mono float32 samples peak-normalized to [-1, 1], the file's sample
+        rate, and the duration. Validates the rate is one Silero supports (8k/16k);
+        a wrong rate means the upstream convert is misconfigured."""
+        y, sr = sf.read(path, dtype="float32", always_2d=False)
+        if y.ndim > 1:                       # defensive mono-mix (the convert emits mono)
+            y = y.mean(axis=1).astype(np.float32)
+        if sr not in (8000, 16000):
+            raise PluginInputError(  # upstream convert misconfigured — Silero needs 8k/16k
+                f"Silero VAD requires 8k or 16k model-ready audio; got {sr} Hz "
+                f"(convert upstream). Path: {path}",
+                fields_invalid=["audio"],
+            )
+        peak = float(np.max(np.abs(y))) if len(y) else 0.0
         if peak > 0:
-            y = y / peak
-            
-        return y.astype(np.float32), float(len(y) / sr)
+            y = (y / peak).astype(np.float32)
+        return y, sr, float(len(y) / sr)
 
-    def execute(
+    def detect_speech(
         self,
-        media_path: Union[str, Path],  # Path to media file to analyze
-        force: bool = False,           # If True, ignore cache and re-run
-        **kwargs                       # Override config parameters for this run
-    ) -> MediaAnalysisResult:  # Analysis result with detected speech segments
-        """Run VAD on the audio file."""
-        media_path = str(media_path)
-        
-        # Apply runtime overrides if any
-        if kwargs:
-            # Create a temporary merged config for this run
-            run_config = dict_to_config(SileroVADConfig, {**config_to_dict(self.config), **kwargs})
-        else:
-            run_config = self.config
+        audio: Union[str, Path],  # Path to MODEL-READY audio (mono 8k/16k, converted upstream)
+        **kwargs                  # Provenance pass-through (unused by VAD compute)
+    ) -> VADResult:  # Typed VAD output with detected speech segments
+        """Detect speech segments in model-ready audio — PURE COMPUTE.
 
-        # Hash the config for cache keying
-        config_hash = hash_dict_canonical(config_to_dict(run_config))
-
-        # Hash the source file (content). Part of the cache lookup so a changed
-        # file misses the cache; the upsert key stays (file_path, config_hash) so
-        # the next save() replaces the stale row rather than accumulating one.
-        file_hash = hash_file(media_path)
-
-        # 1. Check Cache (content-correct: file_path + file_hash + config_hash)
-        if not force:
-            cached = self.storage.get_cached(media_path, file_hash, config_hash)
-            if cached:
-                self.logger.info(f"Using cached VAD result for {media_path}")
-                ranges_data = cached.ranges or []
-                return MediaAnalysisResult(
-                    ranges=[TimeRange(**r) for r in ranges_data],
-                    metadata=cached.metadata or {}
-                )
-
-        # 2. Process
+        Stage 8 / PILLAR 1c: the cache-check + persistence bookends + the per-call
+        `force` control moved to the generic VAD adapter; this method reads the
+        audio, runs Silero, and builds the typed result. Detection params come
+        from `self.config` (no per-call kwarg override — the tool runs its
+        effective config)."""
+        audio_path = self._prepare_audio(audio)
         self._load_model()
-        
-        # Load Audio
-        self.logger.info(f"Processing audio: {media_path}")
-        wav, duration = self._load_audio(media_path, run_config.sampling_rate)
-        
-        # Run Inference
+
+        self.logger.info(f"Processing audio: {audio_path}")
+        wav, sr, duration = self._load_audio(audio_path)
+
         speech_timestamps = get_speech_timestamps(
             audio=wav,
             model=self._model,
-            threshold=run_config.threshold,
-            sampling_rate=run_config.sampling_rate,
-            min_speech_duration_ms=run_config.min_speech_duration_ms,
-            min_silence_duration_ms=run_config.min_silence_duration_ms,
-            speech_pad_ms=run_config.speech_pad_ms,
+            threshold=self.config.threshold,
+            sampling_rate=sr,
+            min_speech_duration_ms=self.config.min_speech_duration_ms,
+            min_silence_duration_ms=self.config.min_silence_duration_ms,
+            speech_pad_ms=self.config.speech_pad_ms,
             return_seconds=True,  # Critical: We want seconds, not samples
             visualize_probs=False
         )
-        
-        # Convert to TimeRange DTOs
-        ranges = []
-        for ts in speech_timestamps:
-            ranges.append(TimeRange(
-                start=ts['start'],
-                end=ts['end'],
-                label="speech",
-                confidence=1.0  # Silero binary output implies high confidence if passed threshold
-            ))
-        
-        # Calculate total speech duration
+
+        ranges = [
+            TimeRange(start=ts["start"], end=ts["end"], label="speech", confidence=1.0)
+            for ts in speech_timestamps
+        ]
         total_speech = sum(r.end - r.start for r in ranges)
-        
         metadata = {
             "duration": duration,
-            "sample_rate": run_config.sampling_rate,
+            "sample_rate": sr,
             "total_speech": total_speech,
             "total_silence": duration - total_speech,
             "segment_count": len(ranges),
-            "processed_at": time.time()
         }
-        
-        self.logger.info(f"Detected {len(ranges)} speech segments ({total_speech:.2f}s speech / {duration:.2f}s total)")
-
-        # 3. Save to Cache (upsert by file_path + config_hash)
-        self.storage.save(
-            file_path=media_path,
-            file_hash=file_hash,
-            config_hash=config_hash,
-            ranges=[r.to_dict() for r in ranges],
-            metadata=metadata
+        self.logger.info(
+            f"Detected {len(ranges)} speech segments "
+            f"({total_speech:.2f}s speech / {duration:.2f}s total)"
         )
-            
-        return MediaAnalysisResult(ranges=ranges, metadata=metadata)
+        return VADResult(ranges=ranges, metadata=metadata)
 
     def is_available(self) -> bool:  # True if Silero VAD is available
         """Check if Silero VAD is available."""
         return SILERO_AVAILABLE
 
     def prefetch(self) -> None:
-        """CR-4 (SG-19): eagerly load the model so the first execute() doesn't pay
-        the load cost. Idempotent via _load_model's None-guard."""
+        """CR-4 (SG-19): eagerly load the model so the first call doesn't pay the load cost."""
         self._load_model()
 
     def on_disable(self) -> None:
-        """CR-2: release the model when the operator disables the plugin (the worker
-        stays alive); the model lazily reloads on the next execute after re-enable."""
+        """CR-2: release the model when the operator disables the plugin (worker stays alive)."""
         self._release_model()
 
     def cleanup(self) -> None:

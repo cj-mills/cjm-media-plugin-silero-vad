@@ -6,18 +6,17 @@ dependencies:
   - python=3.12
   - pip
   - pip:
-    # Core Infrastructure
-    - cjm-plugin-system
-
-    # Tier 2 Interface
-    - cjm-media-plugin-system
+    # Result data noun (VADResult). Substrate (cjm-plugin-system) is
+    # AUTO-INJECTED by `cjm-ctl install-all` (schema v2), so it is no longer
+    # listed here — same reason it was dropped from plugins.yaml interface_libs.
+    - cjm-capability-primitives
 
     # Utilities
     - fastcore
     - pydantic
 
-    # Audio Processing
-    - librosa
+    # Audio I/O (model-ready audio read via soundfile; decode/resample is
+    # upstream ffmpeg, so librosa is no longer needed)
     - numpy
     - soundfile
 
